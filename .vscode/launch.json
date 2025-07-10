@@ -1,0 +1,36 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Current File -FILELOGGING -NOPROGRESS -YEARSBACK 10",
+            "type": "PowerShell",
+            "request": "launch",
+            "script": "${file}",
+            "args": ["-NOPROGRESS", "-FILELOGGING", "-YEARSBACK 10"]
+        },
+        {
+            "name": "Current File -FILELOGGING -YEARSBACK 10",
+            "type": "PowerShell",
+            "request": "launch",
+            "script": "${file}",
+            "args": ["-FILELOGGING", "-YEARSBACK 10"]
+        },
+        {
+            "name": "Current File -FILELOGGING -NOPROGRESS -TESTING -MONTHBACK 6",
+            "type": "PowerShell",
+            "request": "launch",
+            "script": "${file}",
+            "args": ["-TESTING", "-NOPROGRESS", "-FILELOGGING", "-MONTHBACK 6"]
+        },
+        {
+            "name": "Current File -NOPROGRESS -YEARSBACK 1",
+            "type": "PowerShell",
+            "request": "launch",
+            "script": "${file}",
+            "args": ["-NOPROGRESS", "-YEARSBACK 1", "-FILELOGGING"]
+        }
+    ]
+}
