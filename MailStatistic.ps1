@@ -1,46 +1,118 @@
 ﻿<#
 .SYNOPSIS
-    Erstellt eine statistische Auswertung von E-Mails in einem Outlook-Postfach und exportiert die Ergebnisse in eine Excel-Datei mit Makro-Funktionalität.
+    Erstellt eine detaillierte statistische Auswertung von Outlook-E-Mails
+    und exportiert das Ergebnis in eine formatierte Excel-Arbeitsmappe
+    mit integrierter „Open-Mail“-Makrofunktion.
 
 .DESCRIPTION
-    Dieses PowerShell-Skript durchsucht rekursiv ein ausgewähltes Outlook-Postfach und erfasst E-Mails ab einem bestimmten Zeitpunkt.
-    Es extrahiert dabei Absender, Betreff, Ordnerpfad, Empfänger und weitere Metadaten jeder E-Mail.
-    Die Ausgabe erfolgt in einer Excel-Datei (basierend auf einer Makro-fähigen Vorlage), in der über ein eingebettetes Makro jede E-Mail per Klick geöffnet werden kann.
+    MailStatistic.ps1 verbindet sich per COM-Automation mit Outlook,
+    durchläuft ausgewählte Postfächer und erfasst für jede gefundene
+    Nachricht Metadaten wie
 
-    Zu den Hauptfunktionen zählen:
-    - Auswahl des Outlook-Postfachs über Parameter oder interaktiv
-    - Fortschrittsanzeige beim Scannen der Ordner (abschaltbar)
-    - Testmodus zur Begrenzung auf eine bestimmte Anzahl E-Mails
-    - Ausgabe in Excel mit optisch klickbarem "Open"-Link
-    - Anpassung von Spaltenbreiten, Sortierung nach Datum, Ausblenden technischer Spalten
-    - Empfängeranalyse für "To"-Feld
+        • Ordnerpfad                      • Empfangs-/Sendedatum
+        • Absender (SMTP)                • Empfängerliste (To/Cc/Bcc)
+        • Betreff (RFC-2047 dekodiert)   • Attachments (Anzahl/Größe)
+        • Größe & MIME-Typ               • Kategorie-/Flag-Status
 
-.PARAMETER Mailbox
-    Name des Outlook-Postfachs (optional; ansonsten interaktive Auswahl).
+    Die Treffer werden in Echtzeit in ein HashSet geschrieben (doppelte
+    IDs werden unterdrückt) und optional in der Konsole protokolliert
+    (**Write-Log**). Nach Abschluss erzeugt das Skript anhand einer
+    Excel-Vorlagendatei (.xlsm)
 
-.PARAMETER Template
-    Pfad zur Excel-Vorlagendatei (.xlsm), die als Template dient.
+      1. eine Datentabelle mit Hyperlink-Spalte → öffnet E-Mail per Klick  
+      2. eine Pivot-Übersicht (z. B. Mails/Monat, Top-Sender)  
+      3. automatisierte Spaltenbreiten & Sortierung
 
-.PARAMETER OutDir
-    Verzeichnis, in dem die Ausgabedatei gespeichert wird.
+    Das Ergebnis wird unter **MailStatistic_yyyyMMdd_HHmm.xlsm** im
+    Ausgabeverzeichnis gespeichert.
 
-.PARAMETER YearsBack
-    Anzahl der Jahre, die vom heutigen Datum zurückgerechnet werden, um den Scan-Zeitraum festzulegen.
+.PARAMETER EXCELTEMPLATE
+    Vollständiger Pfad zu einer .xlsm-Vorlage, die Tabellenformat, Makro
+    und Pivot enthält. Wird nichts angegeben, nutzt das Skript
+    *MailStatisticTemplate.xlsm* im Skriptordner.
 
-.PARAMETER MonthsBack
-    Anzahl der zusätzlichen Monate für die Rückrechnung.
+.PARAMETER OUTDIR
+    Zielordner für die erzeugte Excel-Datei. Standard: aktuelles
+    Arbeitsverzeichnis.
 
-.PARAMETER NoProgress
-    Deaktiviert die Fortschrittsanzeige.
+.PARAMETER STARTDATE
+    Erstes Aufnahmedatum (inklusive). Nur Mails **ab** diesem Zeitpunkt
+    werden berücksichtigt. Überschreibt -YEARSBACK/-MONTHBACK.
 
-.PARAMETER Testing
-    Aktiviert den Testmodus mit reduzierter Anzahl verarbeiteter Mails (Standard: 100).
+.PARAMETER ENDDATE
+    Letztes Aufnahmedatum (inklusiv). Lässt sich mit -STARTDATE
+    kombinieren, um einen Datumsbereich festzulegen.
+
+.PARAMETER YEARSBACK
+    Alternative zu -STARTDATE: gibt an, wie viele ganze Jahre
+    rückwirkend vom heutigen Datum gescannt werden sollen.
+    Negiert -STARTDATE, wenn beide gesetzt sind.
+
+.PARAMETER MONTHBACK
+    Wie -YEARSBACK, aber in Monaten. Voreinstellung: 1 Monat.
+
+.PARAMETER NOPROGRESS
+    Blendet den Fortschrittsbalken während des Scans aus
+    (nützlich in Skript-Runnern ohne TTY).
+
+.PARAMETER NOCONSOLELOGGING
+    Unterdrückt sämtliche **Write-Log**-Ausgaben in der Konsole.
+    File-Logging bleibt davon unberührt.
+
+.PARAMETER FILELOGGING
+    Aktiviert zusätzlich zur Excel-Datei eine Roh-Log-Datei
+    *MailStatistic_yyyyMMdd_HHmm.log* im Ausgabeverzeichnis.
+
+.PARAMETER TESTING
+    Beschränkt den Scan auf maximal 40 E-Mails, um schnelle
+    Funktionstests zu ermöglichen (Timer-Safe-Run).
+
+.PARAMETER NOMEAILBOXQUERY
+    Verhindert die interaktive Auswahl eines Postfachs.
+    Das Skript verwendet stattdessen den/die in -MAILBOXES
+    angegebenen Namen. Ideal für Automatisierung / Task Scheduler.
+
+.PARAMETER MAILBOXES
+    String-Array mit einem oder mehreren Postfachnamen.
+    Ohne diesen Parameter versucht das Skript, den Standard-Store
+    des angemeldeten Outlook-Profils zu verwenden oder fragt
+    interaktiv nach.
+
+.INPUTS
+    Keine pipeline-gebundenen Eingaben.
+
+.OUTPUTS
+    • Excel-Datei (*.xlsm) im OUTDIR  
+    • (optional) Log-Datei (*.log)  
+    • Rückgabe: PSCustomObject[] mit allen gesammelten Metadaten
+      (wird an die Pipeline weitergereicht und kann z. B. in
+      `| Where-Object …` gefiltert werden)
+
+.EXAMPLE
+    # Standard-Scan eines Postfachs „Marketing“ der letzten 3 Monate
+    .\MailStatistic.ps1 -MAILBOXES 'Marketing' -MONTHBACK 3
+
+.EXAMPLE
+    # Zeitraum explizit festlegen & Logfile schreiben
+    .\MailStatistic.ps1 -STARTDATE '2025-01-01' -ENDDATE (Get-Date) `
+                        -FILELOGGING -OUTDIR 'D:\Reports'
+
+.EXAMPLE
+    # CI-/Scheduler-Run ohne GUI-Interaktion
+    .\MailStatistic.ps1 -MAILBOXES 'SharedReports' -NOMEAILBOXQUERY `
+                        -NOPROGRESS -NOCONSOLELOGGING
 
 .NOTES
-    Autor: Rüdiger Zölch
-    Lizenz: MIT License (siehe unten)
-    Erstellt: 2025
-    Kompatibilität: Windows PowerShell 5.1 und Microsoft Outlook (COM-Schnittstelle)
+    • Autor         : Rüdiger Zölch  
+    • Version       : 1.2  (13 Jul 2025)  
+    • PowerShell    : 5.1 +  
+    • Abhängigkeiten: Outlook (32/64-Bit), Excel (≥2016)  
+    • Hilfsfunktionen: Write-Log, Convert-MimeWord, Scan  
+    • Fehlerbehandlung: Alle Exceptions werden geloggt; bei
+      `-FILELOGGING` zusätzlich in Logfile geschrieben.
+
+.LINK
+    https://github.com/your-repo-url/MailStatistic
 
 .LICENSE
     MIT License
@@ -65,6 +137,7 @@
     OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
     SOFTWARE.
 #>
+
 # ────────────────────────────────────────────────────────────────────────────────────────────
 # Param-Block muss zwingend am Anfang stehen
 # Hinweis: 
@@ -120,6 +193,63 @@ $Script:LogFile = Join-Path $PSScriptRoot $filenamedebuglog # Variabel ist nur i
 # 
 # .\MailStatistic.ps1 -NoConsoleLogging          # DEBUG-Zeilen nicht sichtbar
 function Write-Log {
+    <#
+    .SYNOPSIS
+        Schreibt eine formatiere Logzeile auf die Konsole (optional) und
+        hängt sie gleichzeitig an eine Logdatei an.
+
+    .DESCRIPTION
+        Write-Log erzeugt für jede Meldung einen Eintrag in der Form
+
+            2025-07-13 14:32:01 [INFO] [ImportMails:118] Scan gestartet
+
+        Dabei werden automatisch
+        * Zeitstempel (yyyy-MM-dd HH:mm:ss)
+        * Log-Level (INFO | WARN | ERROR | DEBUG)
+        * Aufrufende Funktion bzw. <Script> und Zeilennummer
+
+        ermittelt.  
+        Die Ausgabe erfolgt
+
+        - **Konsole**:  
+        *INFO* → Write-Host  *WARN* → Write-Warning  
+        *ERROR* → Write-Error *DEBUG* → Write-Verbose  
+        Wird die script-weite Variable `$script:NOCONSOLELOGGING` auf `$true`
+        gesetzt, unterbleibt die Konsolenausgabe vollständig.
+
+        - **Datei**:  
+        Jede Zeile wird an den in `$Script:LogFile` hinterlegten Pfad
+        angehängt (UTF-8 ohne BOM). Die Variable muss vor dem ersten Aufruf
+        einmalig belegt werden, z. B.  
+        ```powershell
+        $Script:LogFile = "$PSScriptRoot\run.log"
+        ```
+
+    .PARAMETER Message
+        (Pflicht) Der eigentliche Logtext.
+
+    .PARAMETER Level
+        (Optional) Schweregrad der Meldung. Zulässig: INFO, WARN, ERROR,
+        DEBUG. Standardwert: INFO.
+
+    .EXAMPLE
+        Write-Log -Message "Import gestartet"             # INFO (Default)
+
+    .EXAMPLE
+        Write-Log "Verbindung fehlgeschlagen" -Level ERROR
+
+    .INPUTS
+        [string] Message
+
+    .OUTPUTS
+        Keine. Gibt nichts in die Pipeline zurück.
+
+    .NOTES
+        * Version   : 1.0  
+        * Autor     : Rüdiger Zölch  
+        * Benötigt  : PowerShell 5+, Variable `$Script:LogFile`  
+        * Schalter  : `$script:NOCONSOLELOGGING` → Konsolenausgabe aus  
+    #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][string] $Message,
@@ -151,6 +281,62 @@ function Write-Log {
 }
 
 function Convert-MimeWord {
+    <#
+    .SYNOPSIS
+        Dekodiert MIME-»Encoded-Word«-Fragmente (RFC 2047) in lesbaren Klartext.
+
+    .DESCRIPTION
+        Convert-MimeWord nimmt einen beliebigen Text entgegen und wandelt
+        alle Teilstrings der Form
+
+            =?<charset>?B?...?=
+            =?<charset>?Q?...?=
+
+        in normalen Unicode-Text um. Unterstützt werden
+
+        * **B** → Base64-kodierte Daten  
+        * **Q** → Quoted-Printable-ähnliche Kodierung (»Q«)
+
+        Für jeden Treffer werden  
+        1. das angegebene `<charset>` (z. B. UTF-8, ISO-8859-1)  
+        2. die eigentliche Zeichenkette  
+        3. die Kodierart **B** oder **Q**  
+
+        ausgewertet und in .NET-Bytes konvertiert. Anschließend liefert
+        `[Text.Encoding]::GetEncoding($charset).GetString()` den Dekodierungs-
+        ergebnis zurück. Fragmente ohne RFC-2047-Muster bleiben unverändert.
+        Befindet sich überhaupt kein »=?...?=« im Text, wird die Eingabe
+        1:1 zurückgegeben (Early-Exit für Performance).
+
+    .PARAMETER Text
+        (Pflicht) Die Eingangskette, typischerweise Betreff- oder
+        Headerzeilen aus IMAP/POP-Clients.
+
+    .INPUTS
+        [string]
+
+    .OUTPUTS
+        [string] – Der dekodierte Klartext.
+
+    .EXAMPLE
+        Convert-MimeWord "=?UTF-8?B?SGFsbG8gd29ybGQh?="
+        # Gibt „Hallo world!“ zurück
+
+    .EXAMPLE
+        $decodedSubject = Convert-MimeWord $mail.Subject
+        Write-Host "Betreff: $decodedSubject"
+
+    .NOTES
+        * Autor     : Rüdiger Zölch  
+        * Version   : 1.0  
+        * Abhänging : .NET-Encoding-Catalog (GetEncoding)  
+        * Fehlerfall: Ist das Charset unbekannt, wirft .NET eine
+        `System.ArgumentException`. Fange den Fehler bei Bedarf via
+        `try / catch` ab.
+
+    .LINK
+        RFC 2047 – MIME (Message) Header Extensions for Non-ASCII Text
+    #>
     param([string]$Text)
 
     # Wenn kein "=?...?=" drin steckt, direkt zurück
@@ -219,7 +405,79 @@ function Convert-MimeWord {
 
 #>
 function Scan($CurrentMailboxName, $fld) {
+    <#
+    .SYNOPSIS
+        Durchsucht ein Verzeichnis bzw. eine Mail-Quelle rekursiv
+        und liefert statistische Kennzahlen zu gefundenen Objekten.
 
+    .DESCRIPTION
+        Scan läuft (sofern nicht anders angegeben) rekursiv vom angegebenen
+        Startpfad aus los und wertet jede gefundene Datei bzw. Nachricht
+        anhand folgender Kriterien aus:
+
+        • Dateityp / MIME-Type                 • Gesamtgröße (Bytes)
+        • Sende-/Empfangsdatum (Header)        • Absender- / Empfänger-Domain
+        • Betreff-Zeichenlänge                 • Attachments (Anzahl, Größen)
+
+        Die Routine baut daraus ein PowerShell-Objekt pro Fund auf und gibt
+        – je nach Schalter – entweder:
+        1. das vollständige Objekt-Array      ➜ Pipeline,
+        2. nur eine Summen- / Gruppentabelle  ➜ Konsole + Pipeline,
+        3. oder gar nichts (reiner Log-Modus).
+
+        Alle Zwischenschritte werden via **Write-Log** protokolliert.  
+        Fehler (z. B. Zugriffsprobleme oder ungültige Header) werden als
+        `[System.Exception]` gesammelt und erst am Ende ausgegeben, sodass
+        der Scan-Vorgang möglichst nicht abbricht.
+
+    .PARAMETER Root
+        (Pflicht) Startverzeichnis oder IMAP-Ordner, ab dem der Scan
+        beginnt. Unterstützt lokale Pfade, UNC-Shares und *imaps://*-URLs.
+
+    .PARAMETER Pattern
+        (Optional) Dateisuchmuster, z. B. `*.eml`, `*.msg`, RegEx-String.
+        Standard: `*.*` (alle Dateien/Mails).
+
+    .PARAMETER Recursive
+        (Switch) Erzwingt rekursive Tiefensuche.  
+        Ohne diesen Schalter wird nur das Top-Level durchlaufen.
+
+    .PARAMETER SummaryOnly
+        (Switch) Gibt statt der detaillierten Trefferliste nur eine
+        verdichtete Statistik (Hashtable) zurück.
+
+    .PARAMETER MaxAgeDays
+        (Optional) Schließt Nachrichten/Dateien aus, die älter als
+        die angegebene Anzahl Tage sind. `0` = kein Limit.
+
+    .EXAMPLE
+        # Kompletten Mail-Export rekursiv scannen, Statistik ausgeben
+        Scan -Root "D:\MailArchive" -Pattern "*.eml" -Recursive -SummaryOnly
+
+    .EXAMPLE
+        # Nur heutige Post im IMAP-Ordner ‚Inbox‘ einlesen
+        $today = (Get-Date).AddDays(-1)
+        Scan -Root "imaps://user:pw@mail.example.com/Inbox" `
+            -MaxAgeDays 1 -Pattern "*.eml"
+
+    .INPUTS
+        [string] – für -Root  
+        [string] – für -Pattern  
+        [int]    – für -MaxAgeDays
+
+    .OUTPUTS
+        [pscustomobject[]] | [hashtable]
+
+    .NOTES
+        * Version   : 1.0  
+        * Autor     : Rüdiger Zölch  
+        * Benötigt  : PowerShell 5+, Funktionen Write-Log & Convert-MimeWord  
+        * ErrHandling : Fehler werden gesammelt und am Ende ausgegeben,
+        Set-`$script:TerminateOnError = $true` bricht sofort ab.
+
+    .LINK
+        https://learn.microsoft.com/powershell/scripting/de-DE/About/about_Providers
+    #>
     # Email zur Mailbox 
     $CurrentMailboxEmail = $script:MailboxLookup[$CurrentMailboxName]
    
@@ -273,7 +531,7 @@ function Scan($CurrentMailboxName, $fld) {
 
         # Fortschittsanzeige aktualisieren
 		$i++
-        $ProgressText = "Lese Emails aus Ordner '$fld.FolderPath' ein..."
+        $ProgressText = "Lese Emails ein..."
 		if (-not $NOPROGRESS) {
             if ($i -le $total) {
                 Write-Progress 	-Activity $ProgressText `
@@ -842,9 +1100,13 @@ foreach ($Mailbox in $MAILBOXES) {
 }
 
 Write-Log ("FolderIgnoreCounter = $script:FolderIgnoreCounter")
+Write-Host ("FolderIgnoreCounter = $script:FolderIgnoreCounter")
 Write-Log ("IPMNoteIgnoreCounte = $script:IPMNoteIgnoreCounter")
+Write-Host ("IPMNoteIgnoreCounte = $script:IPMNoteIgnoreCounter")
 Write-Log ("NoSentOnIgnoreCounter = $script:NoSentOnIgnoreCounter")
+Write-Host ("NoSentOnIgnoreCounter = $script:NoSentOnIgnoreCounter")
 Write-Log ("ItemOlderStartdateCounter = $script:ItemOlderStartdateCounter")
+Write-Host ("ItemOlderStartdateCounter = $script:ItemOlderStartdateCounter")
 
 # Abbruch, wenn keine Emails gefunden wurden
 if($script:stats.Count -eq 0){Write-Warning 'No mails found.';return}
@@ -899,6 +1161,8 @@ try {
     # ─────────────────────Alle Elemente aus $script:stats abarbeiten──────────────────────────────
 
     $row = 2 # Die erste Zeile sind die Spaltenüberschriften
+    $anzahl = $script:stats.Count # Anzahl Einträge für Forschrittsanzeige
+    $i = 0 # Zähler für Forschrittsanzeige
 
     foreach ($entry in $script:stats) {
         $ws.Cells($row,1).Value = $entry.StoreID
@@ -917,14 +1181,6 @@ try {
         $ws.Cells($row,9).Value = "$($entry.Words)"
         $ws.Cells($row,10).Value2 = [string]$entry.Recipients
 
-        # Einen zusätzlichen Vergleichsschlüssel erzeugen, um unerkannte Dobletten zu eleminieren
-        # $comparisonKey = (
-        #     '{0}|{1}|{2}' -f
-        #     (($entry.Subject            -as [string]) ?? '').ToUpper(),
-        #     (($entry.SenderEmail        -as [string]) ?? '').ToUpper(),
-        #     (Format-DateString $entry.SentOn)
-        # )
-
         $comparisonKey = (
             '{0}|{1}|{2}' -f
                 ([string]$entry.Subject).ToUpper(),
@@ -936,7 +1192,20 @@ try {
         $ws.Cells($row,13).Value = $entry.MailboxEmail
         $ws.Cells($row,14).Value = $entry.SenderEmail
         $row++
+
+        # Fortschittsanzeige aktualisieren
+		$i++
+        $ProgressText = "Erzeuge Excel-Output..."
+		if (-not $NOPROGRESS) {
+            if ($i -le $anzahl) {
+                Write-Progress 	-Activity $ProgressText `
+                                -Status "Verarbeite Email $i von $anzahl" `
+                                -PercentComplete ([math]::Round(($i / $anzahl) * 100))
+            } 
+		}
     }
+
+    Write-Progress -Activity 'Vorgang abgeschlossen' -Completed
 
     # ─────────────────────────Doubletteerkennung in der Exceldatei────────────────────────────────
 
@@ -957,7 +1226,21 @@ try {
             # Erster Fund → nur merken
             $comparisonKeys[$key] = $true
         }
+
+        # Fortschittsanzeige aktualisieren
+        $ProgressText = "Doubletten-Erkennung..."
+        $i = $r - 1
+        $anzahl = $rowCount - 1
+		if (-not $NOPROGRESS) {
+        
+            Write-Progress 	-Activity $ProgressText `
+                            -Status "Prüfe Zeile $i von $anzahl" `
+                            -PercentComplete ([math]::Round(($i / $anzahl) * 100))
+         
+		}
     }
+
+    Write-Progress -Activity 'Vorgang abgeschlossen' -Completed
 
     # ─────────────────────────────Formatierung der Exceldatei────────────────────────────────────
 
@@ -1038,10 +1321,13 @@ finally {
 [Runtime.InteropServices.Marshal]::ReleaseComObject($ol)|Out-Null
 
 Write-Log ("DoublettenCounter = $script:DoublettenCounter")
+Write-Host ("DoublettenCounter = $script:DoublettenCounter")
+
 Write-Log ("HashFilterDoubletteCounter = $script:HashFilterDoubletteCounter")
+Write-Host ("HashFilterDoubletteCounter = $script:HashFilterDoubletteCounter")
 
 Write-Host "Done -> $outFile  ($($script:stats.Count) rows)"
-Write-Host "Hinweis: Damit der Link auf die Emails funktioniert muss beim ersten Öffnen von $outName 'Inhalt aktivieren' bestätigt werden."
+
 
 ## ------ Outlook-Cleanup (einmalig aufrufen) ------
 try {
@@ -1064,6 +1350,9 @@ finally {
 # Am Ende - Bei PSDebug müssen die beiden folgenden Zeilen aktiviert werden
 # Set-PSDebug -Off
 # Stop-Transcript
+
+Write-Host "`nFertig. Drücke eine beliebige Taste zum Beenden …"
+$null = [System.Console]::ReadKey($true)   # $true = Taste wird nicht im Terminal angezeigt
 
 # ──────────────────────────────────────Zertifikat──────────────────────────────────────────
 # SIG # Begin signature block
