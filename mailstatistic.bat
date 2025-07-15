@@ -1,1 +1,1 @@
-powershell.exe -ExecutionPolicy Bypass -File "MailStatistic.ps1" -YearsBack 10
+powershell.exe -ExecutionPolicy Bypass -File "MailStatistic.ps1" -YearsBack 10 -MailboxMap @{ "Postfach1"="a@firma.de"; "Postfach2"="b@firma.de" }

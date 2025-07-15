@@ -144,6 +144,8 @@
 # Diese Parameter sind auch in allen Funktion lesend sichtbar. 
 # Ein Schreibzugriff auf diese Paraemter würde aber eine andere Definition erfordern, z.B. [string] $script:EXCELTEMPLATE
 param(
+    [Parameter(Mandatory=$false)]
+    [hashtable]$MailboxMap, # z.B. -MailboxMap @{ "Postfach1"="a@firma.de"; "Postfach2"="b@firma.de" }
     [string] $EXCELTEMPLATE = "$PSScriptRoot\\MailStatisticTemplate.xlsm",
     [string] $OUTDIR = "$PSScriptRoot\out",
     [datetime] $STARTDATE,
@@ -247,8 +249,8 @@ function Write-Log {
     .NOTES
         * Version   : 1.0  
         * Autor     : Rüdiger Zölch  
-        * Benötigt  : PowerShell 5+, Variable `$Script:LogFile`  
-        * Schalter  : `$script:NOCONSOLELOGGING` → Konsolenausgabe aus  
+        * Benötigt  : PowerShell 5+, Variable $Script:LogFile
+        * Schalter  : $script:NOCONSOLELOGGING → Konsolenausgabe aus  
     #>
     [CmdletBinding()]
     param(
@@ -884,30 +886,52 @@ $MAILBOXESDETAILS = foreach ($root in $ns.Folders) {
     $account    = $null
     $acctType   = $null
 
-    # A: direktes MAPI-Feld
-    try { $smtp = $store.PropertyAccessor.GetProperty($tagSMTP) } catch {}
-
-    # B: über Accounts-Mapping
-    if ($StoreId2Acct.ContainsKey($store.StoreID)) {
-        $account  = $StoreId2Acct[$store.StoreID]
-        if (-not $smtp) { $smtp = $account.SmtpAddress }
-        $acctType = $AccountTypeMap[$account.AccountType]
+    # 0: Aus der Map ermitteln
+    if ($MailboxMap -and $MailboxMap.ContainsKey($root.Name)) {
+        $smtp = $MailboxMap[$root.Name]
+        Write-Log ("SMTP-Adresse für '{0}' aus Map ermittelt: {1}" -f $root.Name, $smtp)
     }
+    else {
+   
+        # A: direktes MAPI-Feld
+        try { 
+            $smtp = $store.PropertyAccessor.GetProperty($tagSMTP) 
+            Write-Log ("A: SMTP-Adresse für '{0}' ermittelt: {1}" -f $root.Name, $smtp)
+        } catch {}
 
-    # C: Namens-Match (hilft bei POP/IMAP, wenn A & B leer sind)
-    if (-not $account) {
-        $account = $ns.Accounts |
-                   Where-Object { $_.DisplayName -eq $root.Name } |
-                   Select-Object -First 1
-        if ($account) {
-            if (-not $smtp)     { $smtp = $account.SmtpAddress }
-            if (-not $acctType) { $acctType = $AccountTypeMap[$account.AccountType] }
+        # B: über Accounts-Mapping
+        if ($StoreId2Acct.ContainsKey($store.StoreID)) {
+            $account  = $StoreId2Acct[$store.StoreID]
+            if (-not $smtp) { 
+                $smtp = $account.SmtpAddress 
+                Write-Log ("B: SMTP-Adresse für '{0}' ermittelt: {1}" -f $root.Name, $smtp)
+            }
+            $acctType = $AccountTypeMap[$account.AccountType]
+            Write-Log ("B: AccountType für '{0}' ermittelt: {1}" -f $root.Name, $acctType)
         }
-    }
 
-    # D: Fallback auf ExchangeStoreType
-    if (-not $acctType) {
-        $acctType = $StoreTypeMap[$store.ExchangeStoreType]
+        # C: Namens-Match (hilft bei POP/IMAP, wenn A & B leer sind)
+        if (-not $account) {
+            $account = $ns.Accounts |
+                    Where-Object { $_.DisplayName -eq $root.Name } |
+                    Select-Object -First 1
+            if ($account) {
+                if (-not $smtp) { 
+                    $smtp = $account.SmtpAddress 
+                    Write-Log ("C: SMTP-Adresse für '{0}' ermittelt: {1}" -f $root.Name, $smtp)
+                }
+                if (-not $acctType) { 
+                    $acctType = $AccountTypeMap[$account.AccountType] 
+                    Write-Log ("C: AccountType für '{0}' ermittelt: {1}" -f $root.Name, $acctType)
+                }
+            }
+        }
+
+        # D: Fallback auf ExchangeStoreType
+        if (-not $acctType) {
+            $acctType = $StoreTypeMap[$store.ExchangeStoreType]
+            Write-Log ("D: Fallback auf ExchangeStoreType für '{0}': {1}" -f $root.Name, $acctType)
+        }
     }
 
     [PSCustomObject]@{
