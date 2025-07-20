@@ -14,6 +14,7 @@ Automatisierte **Outlook‑Postfachanalysen** mit PowerShell & Excel.
 | ------------------------------ | ----------------------------------------------------------------------------------------------------- |
 | **MailStatistic.ps1**          | Sammelt Metadaten aus ausgewählten Outlook‑Postfächern und exportiert sie in eine Excel‑Arbeitsmappe. |
 | **MailStatisticTemplate.xlsm** | Makro‑fähige Arbeitsmappe, die die Rohdaten in interaktive Dashboards verwandelt.                     |
+| **mailboxes.psd1** *(optional)* | Konfigurationsdatei für benannte Postfächer (→ siehe `MailboxMapFile`).                               |
 
 ---
 
@@ -32,15 +33,14 @@ Automatisierte **Outlook‑Postfachanalysen** mit PowerShell & Excel.
 git clone https://github.com/<org>/MailStatistic.git
 cd MailStatistic
 
-# 2) Skript ausführen (Beispiel)
+# 2) Analyse starten mit vorkonfigurierten Postfächern
 powershell -ExecutionPolicy Bypass -File .\MailStatistic.ps1 `
-  -ExcelTemplate .\MailStatisticTemplate.xlsm `
-  -OutDir .\out `
+  -MailboxMapFile .\mailboxes.psd1 `
   -YearsBack 1 `
-  -Mailboxes "Postfach A","shared@contoso.com"
+  -FileLogging
 ```
 
-Die Ergebnisdatei `out\\MailStatistic_YYYYMMDD_HHmm.xlsx` öffnet sich automatisch (ansonsten doppelklicken).
+Die Ergebnisdatei `out\MailStatistic_YYYYMMDD_HHmm.xlsx` öffnet sich automatisch (ansonsten doppelklicken).
 
 ---
 
@@ -54,15 +54,39 @@ Die Ergebnisdatei `out\\MailStatistic_YYYYMMDD_HHmm.xlsx` öffnet sich automatis
 | `-EndDate`          | *datetime*  | *now*                        | Analyse‐Ende.                                                                                   |
 | `-YearsBack`        | *int*       | `0`                          | E‑Mails bis zu *n* Jahre rückwirkend berücksichtigen.                                           |
 | `-MonthBack`        | *int*       | `1`                          | E‑Mails bis zu *n* Monate rückwirkend berücksichtigen (ignoriert, falls `StartDate` angegeben). |
-| `-Mailboxes`        | *string\[]* | `@('Postfach A')`            | Ein bis **vier** Postfach‑Anzeige­namen oder SMTP‑Adressen.                                     |
+| `-MailboxMapFile`   | *string*    | *(none)*                     | Optional: Pfad zu einer `.psd1`-Datei mit benannten Postfächern (→ siehe unten).                |
 | `-NoMailboxQuery`   | *switch*    | `False`                      | Interaktive Postfachauswahl überspringen; nur `Mailboxes` verwenden.                            |
 | `-NoProgress`       | *switch*    | `False`                      | Fortschrittsbalken unterdrücken.                                                                |
 | `-NoConsoleLogging` | *switch*    | `True`                       | Ausführliche Konsolenausgabe stummschalten.                                                     |
 | `-FileLogging`      | *switch*    | `False`                      | Debug‑Log (`log.txt`) im `OutDir` schreiben.                                                    |
 | `-Testing`          | *switch*    | `False`                      | Lauf auf ≈ 40 Nachrichten begrenzen (Schnelltest).                                              |
 
-> ℹ️ **Relativer versus absoluter Zeitraum**
-> Wenn `StartDate`/`EndDate` gesetzt sind, werden `YearsBack` und `MonthBack` ignoriert.
+> ℹ️ `-MailboxMapFile` und `-Mailboxes` schließen sich nicht aus. Es können auch beide genutzt werden.
+
+---
+
+## 🔧 Erweiterte Konfiguration: `mailboxes.psd1`
+
+Für häufig wiederkehrende oder benannte Postfächer kann optional eine Konfigurationsdatei verwendet werden:
+
+**Beispiel: `mailboxes.psd1`**
+```powershell
+@{
+  'WInS-Projekt (LGL)'     = 'WInS-Projekt@lgl.bayern.de'
+  'Shapth-Projekt (LGL)'   = 'Shapth-Projekt@lgl.bayern.de'
+  'twfa-projekt (LGL)'     = 'twfa-projekt@lgl.bayern.de'
+  'SHAPTH Tickets (LGL)'   = 'SHAPTH-Tickets@lgl.bayern.de'
+  'WAFA-Tickets (LGL)'     = 'WAFA-Tickets@lgl.bayern.de'
+}
+```
+
+Diese Datei kann dann über den Parameter `-MailboxMapFile` übergeben werden:
+
+```powershell
+powershell -File MailStatistic.ps1 -MailboxMapFile .\mailboxes.psd1 -YearsBack 1
+```
+
+Die Anzeige der Postfächer in der Auswertung erfolgt anhand der konfigurierten Namen.
 
 ---
 

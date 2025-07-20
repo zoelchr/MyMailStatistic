@@ -67,6 +67,9 @@
     Beschränkt den Scan auf maximal 40 E-Mails, um schnelle
     Funktionstests zu ermöglichen (Timer-Safe-Run).
 
+.PARAMETER MailboxMapFile
+    (Optional) Pfad zu einer .psd1-Datei mit benutzerdefinierten Anzeigenamen für Mailbox-Adressen.
+
 .PARAMETER NOMEAILBOXQUERY
     Verhindert die interaktive Auswahl eines Postfachs.
     Das Skript verwendet stattdessen den/die in -MAILBOXES
@@ -88,23 +91,9 @@
       (wird an die Pipeline weitergereicht und kann z. B. in
       `| Where-Object …` gefiltert werden)
 
-.EXAMPLE
-    # Standard-Scan eines Postfachs „Marketing“ der letzten 3 Monate
-    .\MailStatistic.ps1 -MAILBOXES 'Marketing' -MONTHBACK 3
-
-.EXAMPLE
-    # Zeitraum explizit festlegen & Logfile schreiben
-    .\MailStatistic.ps1 -STARTDATE '2025-01-01' -ENDDATE (Get-Date) `
-                        -FILELOGGING -OUTDIR 'D:\Reports'
-
-.EXAMPLE
-    # CI-/Scheduler-Run ohne GUI-Interaktion
-    .\MailStatistic.ps1 -MAILBOXES 'SharedReports' -NOMEAILBOXQUERY `
-                        -NOPROGRESS -NOCONSOLELOGGING
-
 .NOTES
     • Autor         : Rüdiger Zölch  
-    • Version       : 1.2  (13 Jul 2025)  
+    • Version       : 1.1  (20 Jul 2025)  
     • PowerShell    : 5.1 +  
     • Abhängigkeiten: Outlook (32/64-Bit), Excel (≥2016)  
     • Hilfsfunktionen: Write-Log, Convert-MimeWord, Scan  
@@ -145,7 +134,7 @@
 # Ein Schreibzugriff auf diese Paraemter würde aber eine andere Definition erfordern, z.B. [string] $script:EXCELTEMPLATE
 param(
     [Parameter(Mandatory=$false)]
-    [hashtable]$MailboxMap, # z.B. -MailboxMap @{ "Postfach1"="a@firma.de"; "Postfach2"="b@firma.de" }
+    [string]$MAILBOXMAPFILE, 
     [string] $EXCELTEMPLATE,
     [string] $OUTDIR,
     [datetime] $STARTDATE,
@@ -161,7 +150,6 @@ param(
 )
 
 # Defaultwerte setzen
-if (-not $MAILBOXES) { $MAILBOXES = @('Postfach A') } # Hier muss ein Postfach als Standard eingetragen werden
 if (-not $YEARSBACK) {$YEARSBACK=0}
 if (-not $MONTHBACK) {$MONTHBACK=1}
 if (-not $script:NOCONSOLELOGGING) {$script:NOCONSOLELOGGING = $true} # Keine Ausgabe des Loggings auf der Konsole
@@ -803,6 +791,19 @@ if ($MAILBOXES.Count -eq 1 -and $MAILBOXES[0] -like '*,*') {
     $MAILBOXES = $MAILBOXES[0].Split(',') | ForEach-Object { $_.Trim() }
 }
 
+# MAILBOXMAPFILE einlesen
+$MailboxMap = @{}
+if ($MAILBOXMAPFILE -and (Test-Path $MAILBOXMAPFILE)) {
+    $MailboxMap = Import-PowerShellDataFile -Path $MAILBOXMAPFILE
+    Write-Log "MailboxMap:"
+    foreach ($key in $MailboxMap.Keys) {
+        Write-Log "  $key => $($MailboxMap[$key])"
+    }
+} else {
+    Write-Log ("Keine MailboxMap erzeugt, da die Datei '{0}' nicht verfügbar ist." -f $MAILBOXMAPFILE)
+}
+Write-Host ""
+
 # ────────────────────────────────Counter initialisiern───────────────────────────────────────
 $script:FolderIgnoreCounter = 0
 $script:IPMNoteIgnoreCounter = 0
@@ -951,7 +952,6 @@ $MAILBOXESDETAILS |
 
 # hübsch ausgeben
 Write-Host "Übersicht zu verfügbaren Postfächern."
-Write-Host                                              # gibt nur einen leeren Zeile aus
 $MAILBOXESDETAILS | Format-Table -AutoSize
 
 Write-Log ("MAILBOXESDETAILS = {0}" -f $MAILBOXESDETAILS)
