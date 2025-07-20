@@ -5,32 +5,32 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Current File -FILELOGGING -NOPROGRESS -YEARSBACK 10",
+            "name": "Current File -FILELOGGING -NOPROGRESS -YEARSBACK 10 -MailboxMap ...",
             "type": "PowerShell",
             "request": "launch",
             "script": "${file}",
-            "args": ["-NOPROGRESS", "-FILELOGGING", "-YEARSBACK 10"]
+            "args": ["-NOPROGRESS", "-FILELOGGING", "-YEARSBACK 10", "-MailboxMap @{ 'WInS-Projekt (LGL)'='WInS-Projekt@lgl.bayern.de'; 'Shapth-Projekt (LGL)'='Shapth-Projekt@lgl.bayern.de'; 'twfa-projekt (LGL)'='twfa-projekt@lgl.bayern.de'; 'SHAPTH Tickets (LGL)'='SHAPTH-Tickets@lgl.bayern.de'; 'WAFA-Tickets (LGL)'='WAFA-Tickets@lgl.bayern.de'}"]
         },
         {
-            "name": "Current File -FILELOGGING -YEARSBACK 10",
+            "name": "Current File -FILELOGGING -YEARSBACK 10 -MailboxMap ...",
             "type": "PowerShell",
             "request": "launch",
             "script": "${file}",
-            "args": ["-FILELOGGING", "-YEARSBACK 10"]
+            "args": ["-FILELOGGING", "-YEARSBACK 10", "-MailboxMap @{ 'WInS-Projekt (LGL)'='WInS-Projekt@lgl.bayern.de'; 'Shapth-Projekt (LGL)'='Shapth-Projekt@lgl.bayern.de'; 'twfa-projekt (LGL)'='twfa-projekt@lgl.bayern.de'; 'SHAPTH Tickets (LGL)'='SHAPTH-Tickets@lgl.bayern.de'; 'WAFA-Tickets (LGL)'='WAFA-Tickets@lgl.bayern.de'}"]
         },
         {
-            "name": "Current File -FILELOGGING -NOPROGRESS -TESTING -MONTHBACK 6",
+            "name": "Current File -FILELOGGING -NOPROGRESS -TESTING -MONTHBACK 6 -MailboxMap ...",
             "type": "PowerShell",
             "request": "launch",
             "script": "${file}",
-            "args": ["-TESTING", "-NOPROGRESS", "-FILELOGGING", "-MONTHBACK 6"]
+            "args": ["-TESTING", "-NOPROGRESS", "-FILELOGGING", "-MONTHBACK 6", "-MailboxMap @{ 'WInS-Projekt (LGL)'='WInS-Projekt@lgl.bayern.de'; 'Shapth-Projekt (LGL)'='Shapth-Projekt@lgl.bayern.de'; 'twfa-projekt (LGL)'='twfa-projekt@lgl.bayern.de'; 'SHAPTH Tickets (LGL)'='SHAPTH-Tickets@lgl.bayern.de'; 'WAFA-Tickets (LGL)'='WAFA-Tickets@lgl.bayern.de'}"]
         },
         {
-            "name": "Current File -NOPROGRESS -YEARSBACK 1",
+            "name": "Current File -NOPROGRESS -YEARSBACK 1 -MailboxMap ...",
             "type": "PowerShell",
             "request": "launch",
             "script": "${file}",
-            "args": ["-NOPROGRESS", "-YEARSBACK 1", "-FILELOGGING"]
+            "args": ["-NOPROGRESS", "-YEARSBACK 1", "-FILELOGGING", "-MailboxMap @{ 'WInS-Projekt (LGL)'='WInS-Projekt@lgl.bayern.de'; 'Shapth-Projekt (LGL)'='Shapth-Projekt@lgl.bayern.de'; 'twfa-projekt (LGL)'='twfa-projekt@lgl.bayern.de'; 'SHAPTH Tickets (LGL)'='SHAPTH-Tickets@lgl.bayern.de'; 'WAFA-Tickets (LGL)'='WAFA-Tickets@lgl.bayern.de'}"]
         }
     ]
 }

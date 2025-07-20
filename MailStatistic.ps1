@@ -146,8 +146,8 @@
 param(
     [Parameter(Mandatory=$false)]
     [hashtable]$MailboxMap, # z.B. -MailboxMap @{ "Postfach1"="a@firma.de"; "Postfach2"="b@firma.de" }
-    [string] $EXCELTEMPLATE = "$PSScriptRoot\\MailStatisticTemplate.xlsm",
-    [string] $OUTDIR = "$PSScriptRoot\out",
+    [string] $EXCELTEMPLATE,
+    [string] $OUTDIR,
     [datetime] $STARTDATE,
     [datetime] $ENDDATE,
     [int] $YEARSBACK,
