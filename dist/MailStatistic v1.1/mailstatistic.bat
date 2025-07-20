@@ -1,0 +1,1 @@
+powershell.exe -ExecutionPolicy Bypass -File "MailStatistic.ps1" -YearsBack 10 -MailboxMapFile "mailboxes.psd1"
